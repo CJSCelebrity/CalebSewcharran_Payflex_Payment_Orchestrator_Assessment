@@ -49,7 +49,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
     });
   } catch {
-    // fetch only rejects when the request never got an answer — the API is down,
+    // fetch only rejects when the request never got an answer: the API is down,
     // the port is wrong, or CORS blocked it. Worth saying so plainly rather than
     // reporting "failed to fetch".
     throw new ApiError(`Cannot reach the API at ${baseUrl}. Is the backend running?`, 0);
