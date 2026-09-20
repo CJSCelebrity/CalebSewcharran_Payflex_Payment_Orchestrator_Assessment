@@ -1,10 +1,23 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PaymentOrchestratorAssessment.Core.Payments;
 
 namespace PaymentOrchestratorAssessment.Infrastructure.DbContexts;
 
 public class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : DbContext(options)
 {
+    // SQLite stores DateTime as TEXT with no time zone, so EF reads it back as
+    // Unspecified. That serialises to JSON without a "Z", and a browser parsing
+    // "2026-09-20T10:30:00" treats a UTC instant as local time. Every timestamp
+    // this service writes is UTC, so say so on the way out.
+    private static readonly ValueConverter<DateTime, DateTime> UtcDateTime = new(
+        write => write,
+        read => DateTime.SpecifyKind(read, DateTimeKind.Utc));
+
+    private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcDateTime = new(
+        write => write,
+        read => read.HasValue ? DateTime.SpecifyKind(read.Value, DateTimeKind.Utc) : null);
+
     public DbSet<Payment> Payments => Set<Payment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -12,6 +25,9 @@ public class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : Db
         var payment = modelBuilder.Entity<Payment>();
 
         payment.HasKey(p => p.Id);
+
+        payment.Property(p => p.CreatedAt).HasConversion(UtcDateTime);
+        payment.Property(p => p.ConfirmedAt).HasConversion(NullableUtcDateTime);
 
         payment.Property(p => p.CustomerId)
             .IsRequired()

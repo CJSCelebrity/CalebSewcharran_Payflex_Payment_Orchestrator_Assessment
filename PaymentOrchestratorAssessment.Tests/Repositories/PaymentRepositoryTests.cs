@@ -198,6 +198,25 @@ public class PaymentRepositoryTests : IDisposable
         stillPending.ShouldBe(new[] { bystander.Id });
     }
 
+    /// <summary>
+    /// SQLite stores DateTime as TEXT with no time zone, so without an explicit
+    /// converter EF reads it back as Unspecified. That produces JSON with no "Z",
+    /// and a browser then reads a UTC instant as local time.
+    /// </summary>
+    [Fact]
+    public async Task Timestamps_come_back_from_the_database_as_UTC()
+    {
+        var payment = NewPayment();
+        await NewRepository().AddAsync(payment, Ct);
+        await NewRepository().ConfirmIfPendingAsync(payment.Id, Created.AddMinutes(3), Ct);
+
+        var stored = await NewRepository().GetByIdAsync(payment.Id, Ct);
+
+        stored!.CreatedAt.Kind.ShouldBe(DateTimeKind.Utc);
+        stored.ConfirmedAt.ShouldNotBeNull();
+        stored.ConfirmedAt.Value.Kind.ShouldBe(DateTimeKind.Utc);
+    }
+
     [Fact]
     public async Task GetAllNewestFirstAsync_returns_newest_first()
     {

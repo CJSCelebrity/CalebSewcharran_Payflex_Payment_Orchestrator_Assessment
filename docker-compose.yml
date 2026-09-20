@@ -1,0 +1,22 @@
+# Runs the backend alone, which is the point: the API is an independently
+# deployable service and does not need the frontend to function.
+#
+#   docker compose up --build
+#   curl http://localhost:5057/payments
+services:
+  api:
+    build:
+      context: .
+      dockerfile: PaymentOrchestratorAssessment.Api/Dockerfile
+    ports:
+      - "5057:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Payments: "Data Source=/app/data/payments.db"
+      Cors__AllowedOrigins__0: "http://localhost:5173"
+      Cors__AllowedOrigins__1: "http://localhost:4173"
+    volumes:
+      - api-data:/app/data
+
+volumes:
+  api-data:
