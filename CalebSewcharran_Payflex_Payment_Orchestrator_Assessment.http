@@ -1,0 +1,6 @@
+@CalebSewcharran_Payflex_Payment_Orchestrator_Assessment_HostAddress = http://localhost:5185
+
+GET {{CalebSewcharran_Payflex_Payment_Orchestrator_Assessment_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
