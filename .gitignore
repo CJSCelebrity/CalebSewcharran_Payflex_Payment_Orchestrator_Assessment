@@ -1,5 +1,27 @@
+## .NET
 bin/
 obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+*.user
+TestResults/
+
+## SQLite database files (created at runtime)
+*.db
+*.db-shm
+*.db-wal
+
+## Node
+node_modules/
+dist/
+.vite/
+
+## Environment
+.env
+.env.local
+.env.*.local
+
+## OS
+.DS_Store
+Thumbs.db
