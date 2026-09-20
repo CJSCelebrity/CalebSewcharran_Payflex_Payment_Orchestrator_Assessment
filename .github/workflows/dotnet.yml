@@ -1,0 +1,79 @@
+name: .NET Build and Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  SOLUTION: CalebSewcharran_Payflex_Payment_Orchestrator_Assessment.sln
+  TEST_PROJECT: PaymentOrchestratorAssessment.Tests/PaymentOrchestratorAssessment.Tests.csproj
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The SDK version and the Microsoft.Testing.Platform runner opt-in both come
+      # from global.json, so dotnet-version only needs the feature band.
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore $SOLUTION
+
+      - name: Build
+        run: dotnet build $SOLUTION --configuration Release --no-restore
+
+      # xUnit v3 runs on Microsoft.Testing.Platform, so this needs --project rather
+      # than a positional path.
+      - name: Run tests
+        run: dotnet test --project $TEST_PROJECT --configuration Release --no-build
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the API image
+        run: docker build -f PaymentOrchestratorAssessment.Api/Dockerfile -t payment-orchestrator-api:ci .
+
+      # The only place the container is exercised, since Docker is not installed on
+      # the development machine.
+      - name: Smoke test the container
+        run: |
+          set -euo pipefail
+          docker run -d --rm --name api -p 5057:8080 payment-orchestrator-api:ci
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:5057/payments > /dev/null; then break; fi
+            sleep 1
+          done
+
+          echo "Creating a payment"
+          id=$(curl -fsS -X POST http://localhost:5057/payments \
+                 -H 'Content-Type: application/json' \
+                 -d '{"customerId":"CI-001","amount":10.50}' | jq -r '.id')
+
+          echo "Confirming $id"
+          status=$(curl -fsS -X POST "http://localhost:5057/simulate-confirmation/$id" | jq -r '.status')
+          test "$status" = "Confirmed"
+
+          echo "Confirming again must stay Confirmed and not error"
+          status=$(curl -fsS -X POST "http://localhost:5057/simulate-confirmation/$id" | jq -r '.status')
+          test "$status" = "Confirmed"
+
+          echo "Unknown payment must be 404"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+                   http://localhost:5057/simulate-confirmation/00000000-0000-0000-0000-000000000000)
+          test "$code" = "404"
+
+          docker logs api
+          docker stop api
