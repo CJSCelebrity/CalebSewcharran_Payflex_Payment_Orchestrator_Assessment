@@ -56,24 +56,6 @@ cd frontend && npm run test
 
 32 backend tests, 15 frontend tests.
 
-### Regenerating the screenshots
-
-The images in this README are captured from a live run rather than drawn by hand. With
-the API already running:
-
-```bash
-cd frontend
-npx playwright install chromium   # first time only
-npm run build
-npm run preview                   # serves the built app on http://localhost:4173
-npm run screenshots               # in a second terminal
-```
-
-The script drives the real UI: it submits an empty form to surface the validation
-errors, creates two payments, confirms one, and captures Swagger. Output goes to
-`docs/images/`. Start from an empty database (delete `payments.db`) so the list matches
-what is shown here. Override the ports with `APP_URL` and `API_URL` if yours differ.
-
 ### Docker
 
 ```bash
@@ -218,10 +200,7 @@ Two workflows, both on push and pull request against `master`:
 
 ## Evidence of application success
 
-The images below are captured from a real run by
-`frontend/scripts/capture-screenshots.mjs`, which drives the built SPA against the
-running API with Playwright. They are evidence, not mockups. To regenerate them, see
-[Regenerating the screenshots](#regenerating-the-screenshots).
+The images below are captured from the running application, not mockups.
 
 A payment in each state. The newest is `Pending` and offers a Confirm button; the
 confirmed one records when the event was applied:
