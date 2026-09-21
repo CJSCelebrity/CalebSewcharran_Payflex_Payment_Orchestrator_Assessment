@@ -1,0 +1,341 @@
+{
+  "info": {
+    "_postman_id": "02d280f6-c7a2-4744-a5a6-55e441924f5e",
+    "name": "PaymentOrchestrator Lite",
+    "description": "The payments API for the Payflex assessment.\n\nStart the API first:\n\n    dotnet run --project PaymentOrchestratorAssessment.Api --launch-profile http\n\nThe requests are ordered to tell a story and each one asserts its own outcome, so \"Run collection\" works as an end to end smoke test. Ids and the idempotency key are captured into collection variables as the run proceeds, so nothing needs to be pasted by hand.\n\nThe interesting cases are the repeated ones: replaying a create with the same Idempotency-Key returns the original payment rather than making a second, and replaying a confirmation leaves ConfirmedAt untouched. Both are normal traffic for a payments system, not errors.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5057",
+      "type": "string"
+    },
+    {
+      "key": "paymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "confirmedAt",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "List payments",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/payments",
+          "host": ["{{baseUrl}}"],
+          "path": ["payments"]
+        },
+        "description": "Every payment, newest first."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('body is an array', () => {",
+              "    pm.expect(pm.response.json()).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}",
+            "description": "Optional. Repeating a request with the same key returns the payment created the first time instead of creating another one."
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"CUST-001\",\n  \"amount\": 1499.99\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/payments",
+          "host": ["{{baseUrl}}"],
+          "path": ["payments"]
+        },
+        "description": "Creates a payment with status Pending. Responds 201 with a Location header."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// A fresh key per run, so the collection can be run repeatedly and the",
+              "// next request can replay this exact one.",
+              "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 201 Created', () => pm.response.to.have.status(201));",
+              "",
+              "pm.test('sets a Location header', () => {",
+              "    pm.expect(pm.response.headers.get('Location')).to.be.a('string');",
+              "});",
+              "",
+              "const payment = pm.response.json();",
+              "",
+              "pm.test('starts as Pending', () => {",
+              "    pm.expect(payment.status).to.eql('Pending');",
+              "    pm.expect(payment.confirmedAt).to.eql(null);",
+              "});",
+              "",
+              "pm.test('echoes what was sent', () => {",
+              "    pm.expect(payment.customerId).to.eql('CUST-001');",
+              "    pm.expect(payment.amount).to.eql(1499.99);",
+              "});",
+              "",
+              "pm.test('createdAt is UTC', () => {",
+              "    pm.expect(payment.createdAt).to.be.a('string').and.to.match(/Z$/);",
+              "});",
+              "",
+              "pm.collectionVariables.set('paymentId', payment.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create payment (replayed key)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}",
+            "description": "The same key the previous request used."
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"CUST-001\",\n  \"amount\": 1499.99\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/payments",
+          "host": ["{{baseUrl}}"],
+          "path": ["payments"]
+        },
+        "description": "The same request again with the same key. A retried create must not move money twice, so this returns the original payment with 200 rather than creating a second one with 201."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200, not 201', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('returns the original payment', () => {",
+              "    pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('paymentId'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get payment by id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/payments/{{paymentId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["payments", "{{paymentId}}"]
+        },
+        "description": "Where the Location header from the create response points."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('is the payment we created', () => {",
+              "    pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('paymentId'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Confirm payment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/simulate-confirmation/{{paymentId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["simulate-confirmation", "{{paymentId}}"]
+        },
+        "description": "Stands in for the upstream confirmation event. The endpoint is the stand-in, not the state change: it builds a PaymentConfirmationReceived and hands it to the same handler a Kafka consumer or a provider webhook would call."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));",
+              "",
+              "const payment = pm.response.json();",
+              "",
+              "pm.test('moved to Confirmed', () => {",
+              "    pm.expect(payment.status).to.eql('Confirmed');",
+              "});",
+              "",
+              "pm.test('recorded when it happened, in UTC', () => {",
+              "    pm.expect(payment.confirmedAt).to.be.a('string').and.to.match(/Z$/);",
+              "});",
+              "",
+              "pm.collectionVariables.set('confirmedAt', payment.confirmedAt);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Confirm payment (duplicate event)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/simulate-confirmation/{{paymentId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["simulate-confirmation", "{{paymentId}}"]
+        },
+        "description": "Upstream payment events are delivered at-least-once, so the same confirmation arriving twice is normal traffic rather than a fault. The second delivery is a no-op: 200, and ConfirmedAt does not move, because the confirmation happened once whatever the network did afterwards."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200, not an error', () => pm.response.to.have.status(200));",
+              "",
+              "const payment = pm.response.json();",
+              "",
+              "pm.test('still Confirmed', () => {",
+              "    pm.expect(payment.status).to.eql('Confirmed');",
+              "});",
+              "",
+              "pm.test('confirmedAt did not move', () => {",
+              "    pm.expect(payment.confirmedAt).to.eql(pm.collectionVariables.get('confirmedAt'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Confirm unknown payment (404)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/simulate-confirmation/00000000-0000-0000-0000-000000000000",
+          "host": ["{{baseUrl}}"],
+          "path": ["simulate-confirmation", "00000000-0000-0000-0000-000000000000"]
+        },
+        "description": "The one confirmation outcome that is a client error. A duplicate is not."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 404', () => pm.response.to.have.status(404));",
+              "",
+              "pm.test('body is ProblemDetails', () => {",
+              "    const problem = pm.response.json();",
+              "    pm.expect(problem.title).to.eql('Payment not found');",
+              "    pm.expect(problem.status).to.eql(404);",
+              "    pm.expect(problem.detail).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create payment (validation failure)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"\",\n  \"amount\": 0\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/payments",
+          "host": ["{{baseUrl}}"],
+          "path": ["payments"]
+        },
+        "description": "An empty customer and a zero amount. Validation is by data annotations on the DTO, so failures come back as ValidationProblemDetails from the framework rather than hand-rolled checks."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 400', () => pm.response.to.have.status(400));",
+              "",
+              "pm.test('names both offending fields', () => {",
+              "    const errors = pm.response.json().errors;",
+              "    pm.expect(errors).to.have.property('CustomerId');",
+              "    pm.expect(errors).to.have.property('Amount');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

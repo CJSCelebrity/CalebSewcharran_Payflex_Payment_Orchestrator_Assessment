@@ -81,6 +81,11 @@ docker run --rm -p 5057:8080 payment-orchestrator-api
 | `POST` | `/payments`                            | Create a payment with status `Pending` |
 | `POST` | `/simulate-confirmation/{paymentId}`   | Apply a simulated confirmation event   |
 
+### Postman collection
+
+[`docs/postman/PaymentOrchestrator.postman_collection.json`](docs/postman/PaymentOrchestrator.postman_collection.json)
+covers every endpoint. Import it and set `baseUrl` if the API is not on the default port.
+
 ### Sample request
 
 ```bash
