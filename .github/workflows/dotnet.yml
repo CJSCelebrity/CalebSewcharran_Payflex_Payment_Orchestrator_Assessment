@@ -13,8 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The SDK version and the Microsoft.Testing.Platform runner opt-in both come
-      # from global.json, so dotnet-version only needs the feature band.
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v6
         with:
@@ -39,8 +37,6 @@ jobs:
       - name: Build the API image
         run: docker build -f PaymentOrchestratorAssessment.Api/Dockerfile -t payment-orchestrator-api:ci .
 
-      # The only place the container is exercised, since Docker is not installed on
-      # the development machine.
       - name: Smoke test the container
         run: |
           set -euo pipefail
