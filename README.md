@@ -56,6 +56,24 @@ cd frontend && npm run test
 
 32 backend tests, 15 frontend tests.
 
+### Regenerating the screenshots
+
+The images in this README are captured from a live run rather than drawn by hand. With
+the API already running:
+
+```bash
+cd frontend
+npx playwright install chromium   # first time only
+npm run build
+npm run preview                   # serves the built app on http://localhost:4173
+npm run screenshots               # in a second terminal
+```
+
+The script drives the real UI: it submits an empty form to surface the validation
+errors, creates two payments, confirms one, and captures Swagger. Output goes to
+`docs/images/`. Start from an empty database (delete `payments.db`) so the list matches
+what is shown here. Override the ports with `APP_URL` and `API_URL` if yours differ.
+
 ### Docker
 
 ```bash
@@ -200,8 +218,34 @@ Two workflows, both on push and pull request against `master`:
 
 ## Evidence of application success
 
-Verified against a running instance. Create returns `201` with a `Location` header and
-status `Pending`:
+The images below are captured from a real run by
+`frontend/scripts/capture-screenshots.mjs`, which drives the built SPA against the
+running API with Playwright. They are evidence, not mockups. To regenerate them, see
+[Regenerating the screenshots](#regenerating-the-screenshots).
+
+A payment in each state. The newest is `Pending` and offers a Confirm button; the
+confirmed one records when the event was applied:
+
+![Payments list showing one pending and one confirmed payment](docs/images/ui_payment_list.png)
+
+Creating a payment shows a success notification and the new row, with amounts formatted
+as currency and timestamps rendered in the viewer's local time zone:
+
+![Success notification after creating a payment](docs/images/ui_payment_created.png)
+
+Client-side validation mirrors the server's rules, so the common mistakes are caught
+without a round trip:
+
+![Form showing both field-level validation errors](docs/images/ui_validation_errors.png)
+
+Swagger UI, with the endpoint descriptions coming from the XML documentation comments
+on the controller:
+
+![Swagger UI listing the four endpoints](docs/images/swagger_ui.png)
+
+### The API behind those screens
+
+Create returns `201` with a `Location` header and status `Pending`:
 
 ```
 HTTP/1.1 201 Created
